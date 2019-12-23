@@ -3,6 +3,10 @@ Proof-of-Concept Fightstick for the Nintendo Switch, modified to run a script th
 
 Uses the LUFA library and reverse-engineering of the Pokken Tournament Pro Pad for the Wii U to enable custom fightsticks on the Switch System v3.0.0
 
+### Video
+
+[![Link to Youtube Demo](https://img.youtube.com/vi/kS9kI8U9x9E/0.jpg)](https://www.youtube.com/watch?v=kS9kI8U9x9E)
+
 ### How to Use it?
 
 After compiling and flashing onto the micro-controller, you can just plug the micro-controller into the Nintendo switch, using a USB Type-A to Type-C converter if necessary. The script will start to run automatically. Before plugging it in, however, you need to make sure the following requirements are met:
