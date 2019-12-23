@@ -9,11 +9,11 @@ After compiling and flashing onto the micro-controller, you can just plug the mi
 
 - You are currently at the Nursery at the Bridge Field in Wild Area.  
 
-- You have all six slots on your party filled with Pokémons, not eggs. The first Pokémon can be the one with Flame Body ability, and the switch will never switch out the Pokémon on the first slot.
+- You have all six slots on your party filled with Pokémons, not eggs. The first one can be a Pokémon with Flame Body ability, and the script will never switch out the Pokémon on the first slot.
 
 - On the options page, make sure you set text speed to fast, send to boxes to manual, and vertical camera control to regular. 
 
-- On the menu, you should land the cursor on the Town Map icon. So when you press X button, it automatically lands on Town Map.
+- On the menu, you should make sure that the cursor is on the Town Map icon. So when you press X button, it automatically lands on Town Map. The script will assume that by simply pressing X, and several A, it will fly to the Bridge Field in front of the Nursery NPC. 
 
 
 ### Wait, what?
