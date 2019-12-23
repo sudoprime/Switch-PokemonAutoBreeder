@@ -25,6 +25,7 @@ these buttons for our use.
  */
 
 #include "Joystick.h"
+#include "instructions.h"
 
 extern const uint8_t image_data[0x12c1] PROGMEM;
 
@@ -138,36 +139,138 @@ void HID_Task(void) {
 	}
 }
 
-typedef enum {
-	SYNC_CONTROLLER,
-	SYNC_POSITION,
-	STOP_X,
-	STOP_Y,
-	MOVE_X,
-	MOVE_Y,
-	DONE
-} State_t;
-State_t state = SYNC_CONTROLLER;
-
-#define ECHOES 2
-int echoes = 0;
-USB_JoystickReport_Input_t last_report;
-
-int report_count = 0;
-int xpos = 0;
-int ypos = 0;
-int portsval = 0;
-
-// Prepare the next report for the host.
-void GetNextReport(USB_JoystickReport_Input_t* const ReportData) {
-
-	// Prepare an empty report
+void reset_report(USB_JoystickReport_Input_t* const ReportData) {
 	memset(ReportData, 0, sizeof(USB_JoystickReport_Input_t));
 	ReportData->LX = STICK_CENTER;
 	ReportData->LY = STICK_CENTER;
 	ReportData->RX = STICK_CENTER;
 	ReportData->RY = STICK_CENTER;
 	ReportData->HAT = HAT_CENTER;
+}
+
+void take_action(action_t action, USB_JoystickReport_Input_t* const ReportData) {
+	switch (action)
+	{
+		case get_off_bike:
+		case get_on_bike:
+		case press_plus:
+			ReportData->Button |= SWITCH_PLUS;
+			break;
+		
+		case turn_left:
+			ReportData->RX = STICK_MIN;
+			break;
+		
+		case turn_right:
+			ReportData->RX = STICK_MAX;
+			break;
+		
+		case move_forward:
+			ReportData->LY = STICK_MIN;
+			break;
+		case move_backward:
+			ReportData->LY = STICK_MAX;
+			break;
+		
+		case move_left:
+			ReportData->LX = STICK_MIN;
+			break;
+
+		case move_right:
+			ReportData->LX = STICK_MAX;
+			break;
+		
+		case open_menu:
+		case close_menu:
+		case press_x:
+			ReportData->Button |= SWITCH_X;
+			break;
+
+		case press_a:
+			ReportData->Button |= SWITCH_A;
+			break;
+
+		case press_b:
+			ReportData->Button |= SWITCH_B;
+			break;
+
+		case press_y:
+			ReportData->Button |= SWITCH_Y;
+			break;
+
+		case reset_view_angle:
+			ReportData->Button |= SWITCH_L;
+			break;
+		
+		case circle_around:
+			ReportData->LX = STICK_MAX;
+			ReportData->RX = STICK_MAX;
+			break;
+
+		case hang:
+			reset_report(ReportData);
+			break;
+
+		default:
+			reset_report(ReportData);
+			break;
+	}
+}
+
+
+typedef enum {
+	SYNC_CONTROLLER,
+	FLY_TO_NURSERY,
+	APPROACH_NPC,
+	PICK_SWAP_SLOT,
+	SWAP_POKEMON,
+	BREEDING_PREP,
+	BREEDING,
+	BREATHE,
+	NEXT_ROUND,
+	DONE
+} State_t;
+
+State_t state = SYNC_CONTROLLER;
+
+#define ECHOES 2
+int echoes = 0;
+USB_JoystickReport_Input_t last_report;
+
+int duration_count = 0;
+int bufindex = 0;
+int portsval = 0;
+int swap_slot_number = 0;
+
+inline void do_steps(const command_t* steps, uint16_t steps_size, USB_JoystickReport_Input_t* const ReportData, State_t nextState, int add_swap_slot_number) {
+	take_action(steps[bufindex].action, ReportData);
+	duration_count ++;
+	
+	if (duration_count > steps[bufindex].duration)
+	{
+		bufindex ++;
+		duration_count = 0;
+	}
+
+	if (bufindex > steps_size - 1) 
+	{
+		bufindex = 0;
+		duration_count = 0;
+		if (add_swap_slot_number) {
+			swap_slot_number = (swap_slot_number + 1) % 5;
+		}
+
+		state = nextState;
+		reset_report(ReportData);
+	}
+}
+
+
+// Prepare the next report for the host.
+void GetNextReport(USB_JoystickReport_Input_t* const ReportData) {
+
+	// Prepare an empty report
+	reset_report(ReportData);
 
 	// Repeat ECHOES times the last report
 	if (echoes > 0)
@@ -181,72 +284,148 @@ void GetNextReport(USB_JoystickReport_Input_t* const ReportData) {
 	switch (state)
 	{
 		case SYNC_CONTROLLER:
-			if (report_count > 100)
-			{
-				report_count = 0;
-				state = SYNC_POSITION;
-			}
-			else if (report_count == 25 || report_count == 50)
-			{
-				ReportData->Button |= SWITCH_L | SWITCH_R;
-			}
-			else if (report_count == 75 || report_count == 100)
-			{
-				ReportData->Button |= SWITCH_A;
-			}
-			report_count++;
+			bufindex = 0;
+			state = BREATHE;
 			break;
-		case SYNC_POSITION:
-			if (report_count == 250)
-			{
-				report_count = 0;
-				xpos = 0;
-				ypos = 0;
-				state = STOP_X;
-			}
-			else
-			{
-				// Moving faster with LX/LY
-				ReportData->LX = STICK_MIN;
-				ReportData->LY = STICK_MIN;
-			}
-			if (report_count == 75 || report_count == 150)
-			{
-				// Clear the screen
-				ReportData->Button |= SWITCH_MINUS;
-			}
-			report_count++;
+		
+		case BREATHE:
+			do_steps(wake_up_hang, ARRAY_SIZE(wake_up_hang), ReportData, FLY_TO_NURSERY, 0);
 			break;
-		case STOP_X:
-			state = MOVE_X;
+
+		case FLY_TO_NURSERY:
+			do_steps(fly_to_breading_steps, ARRAY_SIZE(fly_to_breading_steps), ReportData, APPROACH_NPC, 0);
+			// take_action(fly_to_breading_steps[bufindex], ReportData);
+			// duration_count ++;
+			
+			// if (duration_count > fly_to_breading_steps[bufindex].duration)
+			// {
+			// 	bufindex ++;
+			// 	duration_count = 0;
+			// }
+
+			// if (bufindex > (int)(sizeof(fly_to_breading_steps) / sizeof(fly_to_breading_steps[0])) - 1) 
+			// {
+			// 	bufindex = 0;
+			// 	duration_count = 0;
+
+			// 	state = APPROACH_NPC;
+
+			// 	reset_report(ReportData);
+			// }
 			break;
-		case STOP_Y:
-			if (ypos < 120 - 1)
-				state = MOVE_Y;
-			else
-				state = DONE;
+
+		case APPROACH_NPC:
+			do_steps(get_egg_steps, ARRAY_SIZE(get_egg_steps), ReportData, PICK_SWAP_SLOT, 0);
+			// take_action(get_egg_steps[bufindex], ReportData);
+			// duration_count ++;
+			
+			// if (duration_count > get_egg_steps[bufindex].duration)
+			// {
+			// 	bufindex ++;
+			// 	duration_count = 0;
+			// }
+
+			// if (bufindex > (int)(sizeof(get_egg_steps) / sizeof(get_egg_steps[0])) - 1) 
+			// {
+			// 	bufindex = 0;
+			// 	duration_count = 0;
+
+			// 	state = PICK_SWAP_SLOT;
+
+			// 	reset_report(ReportData);
+			// }
+		
 			break;
-		case MOVE_X:
-			if (ypos % 2)
+	
+		case PICK_SWAP_SLOT:
+			// do_steps(swap_slot[swap_slot_number], swap_slot_size[swap_slot_number], ReportData, SWAP_POKEMON, 1);
+			take_action(swap_slot[swap_slot_number][bufindex].action, ReportData);
+			duration_count ++;
+			
+			if (duration_count > swap_slot[swap_slot_number][bufindex].duration)
 			{
-				ReportData->HAT = HAT_LEFT;
-				xpos--;
+				bufindex ++;
+				duration_count = 0;
 			}
-			else
+
+			if (bufindex > swap_slot_size[swap_slot_number] - 1) 
 			{
-				ReportData->HAT = HAT_RIGHT;
-				xpos++;
+				bufindex = 0;
+				duration_count = 0;
+				swap_slot_number = (swap_slot_number + 1) % 5;
+
+				state = SWAP_POKEMON;
+
+				reset_report(ReportData);
 			}
-			if (xpos > 0 && xpos < 320 - 1)
-				state = STOP_X;
-			else
-				state = STOP_Y;
 			break;
-		case MOVE_Y:
-			ReportData->HAT = HAT_BOTTOM;
-			ypos++;
-			state = STOP_X;
+
+			// take_action(swap_slot_3[bufindex], ReportData);
+			// duration_count ++;
+			
+			// if (duration_count > swap_slot_3[bufindex].duration)
+			// {
+			// 	bufindex ++;
+			// 	duration_count = 0;
+			// }
+
+			// if (bufindex > (int)(sizeof(swap_slot_3) / 
+			//                      sizeof(swap_slot_3[0])) - 1) 
+			// {
+			// 	bufindex = 0;
+			// 	duration_count = 0;
+			// 	swap_slot_number = (swap_slot_number + 1) % 5;
+
+			// 	state = SWAP_POKEMON;
+			// }
+			// break;
+
+		case SWAP_POKEMON:
+			do_steps(swap_pokemon_steps, ARRAY_SIZE(swap_pokemon_steps), ReportData, BREEDING_PREP, 0);
+			// take_action(swap_pokemon_steps[bufindex], ReportData);
+			// duration_count ++;
+
+			// if (duration_count > swap_pokemon_steps[bufindex].duration)
+			// {
+			// 	bufindex ++;
+			// 	duration_count = 0;
+			// }
+
+			// if (bufindex > (int)(sizeof(swap_pokemon_steps) / sizeof(swap_pokemon_steps[0])) - 1) 
+			// {
+			// 	bufindex = 0;
+			// 	duration_count = 0;
+
+			// 	state = BREEDING_PREP;
+
+			// 	reset_report(ReportData);
+			// }
 			break;
+
+		case BREEDING_PREP:
+			do_steps(breeding_prep_steps, ARRAY_SIZE(breeding_prep_steps), ReportData, BREEDING, 0);
+			break;
+
+		case BREEDING:
+			take_action(circle_around, ReportData);
+			duration_count ++;
+			
+			if (duration_count % 100 >= 0 && duration_count % 100 <= 5) {
+				take_action(press_a, ReportData);
+			}
+			
+			if (duration_count > breeding_duration - 1) {
+				duration_count = 0;
+				bufindex = 0;
+
+				state = NEXT_ROUND;
+			}
+			break;
+
+		case NEXT_ROUND:
+			do_steps(next_round_steps, ARRAY_SIZE(next_round_steps), ReportData, FLY_TO_NURSERY, 0);
+			break;
+
 		case DONE:
 			#ifdef ALERT_WHEN_DONE
 			portsval = ~portsval;
@@ -257,13 +436,15 @@ void GetNextReport(USB_JoystickReport_Input_t* const ReportData) {
 			return;
 	}
 
-	// Inking
-	if (state != SYNC_CONTROLLER && state != SYNC_POSITION)
-		if (pgm_read_byte(&(image_data[(xpos / 8) + (ypos * 40)])) & 1 << (xpos % 8))
-			ReportData->Button |= SWITCH_A;
+	// // Inking
+	// if (state != SYNC_CONTROLLER && state != SYNC_POSITION)
+	// 	if (pgm_read_byte(&(image_data[(xpos / 8) + (ypos * 40)])) & 1 << (xpos % 8))
+	// 		ReportData->Button |= SWITCH_A;
 
 	// Prepare to echo this report
 	memcpy(&last_report, ReportData, sizeof(USB_JoystickReport_Input_t));
 	echoes = ECHOES;
 
 }
+
+
