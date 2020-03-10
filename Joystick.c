@@ -242,7 +242,7 @@ int bufindex = 0;
 int portsval = 0;
 int swap_slot_number = 0;
 
-inline void do_steps(const command_t* steps, uint16_t steps_size, USB_JoystickReport_Input_t* const ReportData, State_t nextState, int add_swap_slot_number) {
+static inline void do_steps(const command_t* steps, uint16_t steps_size, USB_JoystickReport_Input_t* const ReportData, State_t nextState, int add_swap_slot_number) {
 	take_action(steps[bufindex].action, ReportData);
 	duration_count ++;
 	
